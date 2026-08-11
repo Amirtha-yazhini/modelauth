@@ -1,0 +1,15 @@
+# Virtual Environment
+substitution-sim/venv/
+venv/
+
+# Python Cache
+**/__pycache__/
+*.pyc
+*.pyo
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Data Logs (optional ignore, or keep if tracked)
+*.log
