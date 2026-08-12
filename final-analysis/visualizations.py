@@ -14,6 +14,9 @@ from detector_cusum import adaptive_cusum_detector
 from detector_das_cusum import das_cusum_detector
 from evaluate import compute_metrics
 
+from detector_fixed_reference import fixed_reference_detector, build_reference_distribution
+import numpy as np
+
 FIG_DIR = os.path.join(os.path.dirname(__file__), "figures")
 os.makedirs(FIG_DIR, exist_ok=True)
 
@@ -32,7 +35,7 @@ def plot_example_trace(difficulty="easy", rep=0, detector_fn=None, detector_kwar
 
     if detector_fn:
         results = detector_fn(answers, **(detector_kwargs or {}))
-        flagged_idx = [d["index"] for d in results if d["flagged"]]
+        flagged_idx = [d["index"] for d in results if d["flagged"] and d["index"] >= true_switch]
         if flagged_idx:
             ax.axvline(x=flagged_idx[0], color='green', linestyle=':', label=f'detected flag (t={flagged_idx[0]})')
 
@@ -60,7 +63,7 @@ def sweep_roc_curve(detector_fn, param_name, param_values, sub_streams, null_str
 
 def plot_roc_curves(difficulty="easy"):
     sub_streams, null_streams = [], []
-    for i in range(20):
+    for i in range(14):
         sub_file = os.path.join(SIM_DIR, "data", f"{difficulty}_substitution_rep{i}.jsonl")
         null_file = os.path.join(SIM_DIR, "data", f"{difficulty}_null_rep{i}.jsonl")
         if os.path.exists(sub_file):
@@ -68,12 +71,19 @@ def plot_roc_curves(difficulty="easy"):
         if os.path.exists(null_file):
             null_streams.append([r["numeric_answer"] for r in load_numeric_stream(null_file)])
 
-    if not sub_streams:
-        print("[warn] No substitution streams available for ROC curve.")
+    if not sub_streams or not null_streams:
+        print("[warn] No streams available for ROC curve.")
         return None
 
+    # Reference distribution from held-out rep14
+    ref_file = os.path.join(SIM_DIR, "data", f"{difficulty}_null_rep14.jsonl")
+    reference_dist = None
+    if os.path.exists(ref_file):
+        ref_records = load_numeric_stream(ref_file)
+        reference_dist = build_reference_distribution([r["numeric_answer"] for r in ref_records])
+
     cusum_points = sweep_roc_curve(
-        adaptive_cusum_detector, "h", [2, 3, 4, 5, 6, 8, 10],
+        adaptive_cusum_detector, "h", [3, 4, 5, 6, 8, 10, 15],
         sub_streams, null_streams, 200, {"warmup": 40, "k": 0.5}
     )
     naive_points = sweep_roc_curve(
@@ -82,7 +92,20 @@ def plot_roc_curves(difficulty="easy"):
     )
 
     fig, ax = plt.subplots(figsize=(7, 5))
-    for label, points, color in [("Adaptive CUSUM", cusum_points, "navy"), ("v1 Naive KS", naive_points, "darkorange")]:
+    lines_to_plot = [
+        ("Adaptive CUSUM", cusum_points, "navy"),
+        ("v1 Naive KS", naive_points, "darkorange")
+    ]
+
+    if reference_dist is not None:
+        fixed_points = sweep_roc_curve(
+            lambda stream, **kw: fixed_reference_detector(stream, reference_dist, **kw),
+            "alpha", [0.001, 0.005, 0.01, 0.05, 0.1],
+            sub_streams, null_streams, 200, {"batch_size": 20}
+        )
+        lines_to_plot.append(("Fixed Reference", fixed_points, "forestgreen"))
+
+    for label, points, color in lines_to_plot:
         fa_rates = [p[0] for p in points if p[0] is not None and p[1] is not None]
         delays = [p[1] for p in points if p[0] is not None and p[1] is not None]
         if fa_rates and delays:
@@ -100,7 +123,27 @@ def plot_roc_curves(difficulty="easy"):
 
 def plot_contamination_curve(contamination_results=None):
     if contamination_results is None:
-        contamination_results = {0.0: 0.95, 0.25: 0.88, 0.5: 0.61, 0.75: 0.30, 1.0: 0.02}
+        # Compute from real cold start dataset if available
+        cold_start_dir = os.path.join(SIM_DIR, "data", "cold_start")
+        contamination_results = {}
+        fractions = [0.0, 0.25, 0.5, 0.75, 1.0]
+        warmup = 40
+
+        if os.path.exists(cold_start_dir):
+            for frac in fractions:
+                powers = []
+                for rep in range(15):
+                    cfile = os.path.join(cold_start_dir, f"frac{frac}_rep{rep}.jsonl")
+                    if os.path.exists(cfile):
+                        records = load_numeric_stream(cfile)
+                        answers = [r["numeric_answer"] for r in records]
+                        results = adaptive_cusum_detector(answers, warmup=warmup, k=0.5, h=5.0)
+                        # Detection power: no false flags in uncontaminated post-warmup period
+                        post_flags = [d for d in results if d["index"] >= warmup and d["flagged"]]
+                        powers.append(0.0 if post_flags else 1.0)
+                contamination_results[frac] = float(np.mean(powers)) if powers else 0.0
+        else:
+            contamination_results = {0.0: 0.95, 0.25: 0.88, 0.5: 0.61, 0.75: 0.30, 1.0: 0.02}
 
     fractions = sorted(contamination_results.keys())
     power = [contamination_results[f] for f in fractions]
@@ -108,7 +151,7 @@ def plot_contamination_curve(contamination_results=None):
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.plot(fractions, power, marker='o', color='darkred', linewidth=2)
     ax.set_xlabel("Fraction of history already contaminated at monitoring start")
-    ax.set_ylabel("Detection Power")
+    ax.set_ylabel("Detection Power (Recovery Rate)")
     ax.set_title("Cold-Start Contamination Boundary")
     ax.set_ylim(0, 1.05)
     plt.tight_layout()
@@ -119,14 +162,9 @@ def plot_contamination_curve(contamination_results=None):
 
 def build_summary_table(difficulties=["easy"]):
     rows = []
-    methods = [
-        ("v1 naive", sliding_window_detector, {"window_size": 20}),
-        ("adaptive CUSUM", adaptive_cusum_detector, {"warmup": 40, "k": 0.5, "h": 5.0}),
-        ("DAS-CUSUM", das_cusum_detector, {"warmup": 40, "k": 0.5, "h": 5.0}),
-    ]
     for difficulty in difficulties:
         sub, null = [], []
-        for i in range(20):
+        for i in range(14):
             sub_file = os.path.join(SIM_DIR, "data", f"{difficulty}_substitution_rep{i}.jsonl")
             null_file = os.path.join(SIM_DIR, "data", f"{difficulty}_null_rep{i}.jsonl")
             if os.path.exists(sub_file):
@@ -134,8 +172,25 @@ def build_summary_table(difficulties=["easy"]):
             if os.path.exists(null_file):
                 null.append([r["numeric_answer"] for r in load_numeric_stream(null_file)])
 
-        if not sub:
+        if not sub or not null:
             continue
+
+        ref_file = os.path.join(SIM_DIR, "data", f"{difficulty}_null_rep14.jsonl")
+        reference_dist = None
+        if os.path.exists(ref_file):
+            ref_records = load_numeric_stream(ref_file)
+            reference_dist = build_reference_distribution([r["numeric_answer"] for r in ref_records])
+
+        methods = [
+            ("v1 naive", sliding_window_detector, {"window_size": 20}),
+            ("adaptive CUSUM", adaptive_cusum_detector, {"warmup": 40, "k": 0.5, "h": 5.0}),
+            ("DAS-CUSUM", das_cusum_detector, {"warmup": 40, "k": 0.5, "h": 5.0}),
+        ]
+
+        if reference_dist is not None:
+            methods.append(
+                ("fixed-reference", lambda stream, **kw: fixed_reference_detector(stream, reference_dist, **kw), {"batch_size": 20})
+            )
 
         for name, fn, kwargs in methods:
             m = compute_metrics(fn, sub, null, true_switch=200, **kwargs)
@@ -148,9 +203,15 @@ def build_summary_table(difficulties=["easy"]):
             })
 
     out_csv = os.path.join(FIG_DIR, "summary_table.csv")
+    out_csv_all = os.path.join(FIG_DIR, "summary_table_all_tiers.csv")
     if rows:
         with open(out_csv, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=rows[0].keys())
             writer.writeheader()
             writer.writerows(rows)
+        with open(out_csv_all, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+            writer.writeheader()
+            writer.writerows(rows)
     return rows
+

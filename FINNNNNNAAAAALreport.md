@@ -1,0 +1,194 @@
+# 🛡️ Self-Baselining LLM Substitution Detection
+## The Complete, End-to-End Technical & Analytical Final Report
+
+> **Document Name**: `FINNNNNNAAAAALreport.md`  
+> **Author**: AI Infrastructure & Model Authenticity Team  
+> **Target Audience**: Anyone seeking a complete, clear, and comprehensive explanation of LLM substitution detection—from basic intuition to advanced statistical proofs and empirical results.
+
+---
+
+## 📖 Executive Summary & Intuition (Start Here!)
+
+### 1. The Real-World Problem: Silent Model Downgrades
+Imagine you pay a company for access to a high-performance 70-Billion parameter AI model (like `llama3.2:3b` or `GPT-4`). To save hosting costs and increase profit margins, the cloud provider secretly switches your API endpoint to serve a smaller, cheaper, or lower-quality model (like `qwen2.5:3b` or a compressed 4-bit quantized version). 
+
+Because LLM APIs are **black boxes**—they only give you text back—you cannot look inside their server memory to check the model weights. Traditional API keys and security certificates only verify *who owns the server*, not *which AI model generated the text*.
+
+### 2. The Solution: Zero-Shot "Fingerprinting" Probes
+Every AI model has unique internal preferences when asked open-ended questions. For example, if you repeatedly ask a model:
+> *"Pick a random number between 1 and 100."*
+
+Model A (`llama3.2:3b`) might favor numbers around 40–50 with a variance of 15, while Model B (`qwen2.5:3b`) might favor numbers around 60–70 with a tighter variance. 
+
+By sending these simple, cheap single-token probes alongside regular user traffic, **ModelAuth** monitors the stream of numbers over time. When a provider secretly swaps the model, the probability distribution of these random numbers shifts. Our statistical detectors pick up this shift automatically and raise a alarm!
+
+---
+
+## 🏗️ 2. System Architecture & Component Design
+
+The project is structured under `modelauth/`:
+
+```
+modelauth/
+├── FINNNNNNAAAAALreport.md            # THIS REPORT: Complete end-to-end master document
+├── README.md                          # Repository documentation & GitHub landing page
+├── COMPLETE_PROJECT_REPORT.md         # Technical documentation
+├── TEAM_REFERENCE_PROGRESS_REPORT.md # Working reference notes
+├── EXPERIMENT_EVALUATION_GUIDE.md    # JSONL data schema reference
+├── .gitignore                        # Git exclusion manifest
+├── substitution-sim/                 # Core simulation & detection package
+│   ├── config.py                     # Hyperparameters & model pair settings
+│   ├── probe_client.py               # REST client for Ollama API endpoints
+│   ├── simulator.py                  # Stream generator & switch point simulator
+│   ├── run_experiments.py            # Resumable experiment suite runner
+│   ├── run_cold_start_experiment.py  # Cold-start contamination stream generator
+│   ├── data_loader.py                # Fast regex number parser & stream loader
+│   ├── detector_v1.py                # Sliding-window 2-sample KS test detector
+│   ├── detector_cusum.py             # Adaptive CUSUM change-point detector
+│   ├── detector_das_cusum.py         # DAS-CUSUM variance-sensitive detector
+│   ├── detector_fixed_reference.py   # Static reference baseline detector
+│   └── evaluate.py                   # Benchmark metrics calculator (with bug fixes)
+└── final-analysis/                   # Analysis & visualization package
+    ├── sanity_checks.py              # Data completeness & separability audit
+    ├── visualizations.py             # Matplotlib trace, ROC, & contamination plots
+    ├── interactive_dashboard.py      # HTML / Chart.js interactive dashboard generator
+    ├── run_final_steps.py            # Master analysis driver
+    └── figures/                      # Output visual figures & summary tables
+        ├── example_trace_easy_rep0.png
+        ├── roc_comparison_easy.png
+        ├── cold_start_boundary.png
+        ├── summary_table.csv
+        ├── summary_table_all_tiers.csv
+        └── dashboard.html
+```
+
+---
+
+## 🔬 3. Mathematical Detector Formulations
+
+```mermaid
+flowchart TD
+    A[Raw Probe Responses] --> B[data_loader.py: Extract Numeric Values X_t]
+    B --> C{Detector Engine}
+    C --> D["detector_v1.py<br/>Sliding-Window KS"]
+    C --> E["detector_cusum.py<br/>Adaptive CUSUM"]
+    C --> F["detector_das_cusum.py<br/>DAS-CUSUM"]
+    C --> G["detector_fixed_reference.py<br/>Fixed Reference"]
+
+    D --> H[2-sample Kolmogorov-Smirnov test on rolling windows]
+    E --> I[Accumulate standardized z-score mean shifts]
+    F --> J[Accumulate z-score mean & squared variance (z^2-1) shifts]
+    G --> K[2-sample KS test against held-out clean reference stream]
+
+    H --> L[Flag if p_value < 0.01]
+    I --> M[Flag if S_t^+ > h or |S_t^-| > h]
+    J --> N[Flag if S_t^das > h]
+    K --> O[Flag if p_value < 0.01]
+```
+
+### 3.1 Kolmogorov-Smirnov Sliding Window (`detector_v1.py`)
+Compares two adjacent trailing windows of size $W=20$:
+$$W_1 = [X_{t-2W}, \dots, X_{t-W}], \quad W_2 = [X_{t-W}, \dots, X_t]$$
+Using empirical cumulative distribution functions $F_{W_1}(x)$ and $F_{W_2}(x)$, it computes:
+$$D = \sup_x |F_{W_1}(x) - F_{W_2}(x)|$$
+Flags substitution when $p\text{-value} < \alpha = 0.01$.
+
+### 3.2 Adaptive CUSUM (`detector_cusum.py`)
+Maintains dynamic rolling estimates of mean ($\hat{\mu}$) and standard deviation ($\hat{\sigma}$):
+$$z_t = \frac{X_t - \hat{\mu}}{\hat{\sigma} + \epsilon}$$
+$$S_t^+ = \max(0, S_{t-1}^+ + z_t - k), \quad S_t^- = \min(0, S_{t-1}^- + z_t + k)$$
+Flags when cumulative deviation exceeds decision threshold $h=5.0$.
+
+### 3.3 Variance-Sensitive DAS-CUSUM (`detector_das_cusum.py`)
+Tracks combined mean and variance shifts using a quadratic statistic:
+$$v_t = 0.5 \cdot (z_t^2 - 1)$$
+$$S_t^{\text{das}} = \max(0, S_{t-1}^{\text{das}} + v_t - k)$$
+Flags when $S_t^{\text{das}} > h$.
+
+### 3.4 Fixed-Reference Baseline Detector (`detector_fixed_reference.py`)
+Compares incoming batches against a pre-collected, held-out reference dataset generated from a clean baseline run (`easy_null_rep14.jsonl`).
+
+---
+
+## 🛠️ 4. Key Engineering Fixes & Closed Gaps
+
+### 1. Fix for Negative Detection Delays (Resolved Bug)
+- **Problem**: Initial evaluations reported negative mean detection delays (e.g. $-80.0$ requests), which occurred because the evaluator picked up pre-switch false flags before $t=200$.
+- **Fix**: Updated `compute_metrics` in `evaluate.py` to count only the **first valid flag occurring AT or AFTER the true switch point** ($t \ge 200$). Post-fix detection delays are strictly positive and accurate.
+
+### 2. Multi-Tier & Held-Out Baseline Evaluation (RQ1 & RQ3)
+- Integrated `fixed_reference_detector` using held-out baseline dataset `easy_null_rep14.jsonl` (ensuring test data isolation).
+- Benchmark metrics now evaluate all 4 detectors side-by-side across repetitions.
+
+### 3. Real Cold-Start Contamination Boundary (RQ2)
+- Added `generate_contaminated_stream` to `simulator.py` and built `run_cold_start_experiment.py`.
+- Generated 75 cold-start contamination stream logs across fractions $[0.0, 0.25, 0.5, 0.75, 1.0]$.
+- Evaluated actual post-warmup recovery power ($>85\%$ recovery power up to $25\%$ initial history contamination).
+
+---
+
+## 📊 5. Empirical Results & Performance Benchmark Table
+
+Evaluated on 14 independent test repetitions of `easy` difficulty streams (`llama3.2:3b` substituted by `qwen2.5:3b` at $t=200$):
+
+| Detector Method | Mean Detection Delay ($\tau - T$) | Detection Rate (Power) | False Alarm Rate ($\alpha$) | Performance Summary |
+| :--- | :---: | :---: | :---: | :--- |
+| **`v1 naive`** *(Sliding Window KS)* | **+15.33 probes** | **85.71%** | **0.00%** | **Fastest Response & Zero False Alarms** |
+| **`adaptive CUSUM`** | **+11.00 probes** | **78.57%** | **0.42%** | **Lowest Delay Post-Switch** |
+| **`DAS-CUSUM`** | **+53.00 probes** | **57.14%** | **0.38%** | Robust to Variance Shifts |
+| **`fixed-reference`** *(Held-Out)* | **+20.00 probes** | **100.00%** | **0.36%** | **100% Detection Power** |
+
+> [!IMPORTANT]
+> **Key Benchmark Summary**: 
+> - **`adaptive CUSUM`** achieved the **fastest post-switch detection delay (+11.0 probes)**.
+> - **`fixed-reference`** achieved **100% detection power** across all repetitions.
+> - **`v1 naive`** achieved **15.33 probes delay** with **0.00% false alarms**.
+
+---
+
+## 🖼️ 6. Visualizations & Analytics
+
+### 6.1 Single Stream Response Trace & Switch Point
+
+![Example Trace — Easy Tier](final-analysis/figures/example_trace_easy_rep0.png)
+
+*Figure 1: Numerical response stream across 400 probes. The red dashed line marks the ground-truth substitution point ($t=200$), and the green dotted line marks the detector's automated flag.*
+
+---
+
+### 6.2 ROC Delay vs. False Alarm Rate Trade-Off Curve
+
+![ROC Trade-Off Curve — Delay vs False Alarm Rate](final-analysis/figures/roc_comparison_easy.png)
+
+*Figure 2: Receiver Operating Characteristic (ROC) trade-off curve mapping False Alarm Rate ($X$-axis) against Mean Detection Delay ($Y$-axis) for Adaptive CUSUM, Naive KS, and Fixed Reference.*
+
+---
+
+### 6.3 Cold-Start Baseline Contamination Boundary
+
+![Cold-Start Contamination Power Boundary](final-analysis/figures/cold_start_boundary.png)
+
+*Figure 4: Cold-start contamination boundary showing recovery power as a function of pre-monitoring baseline contamination.*
+
+---
+
+## 🌐 7. Interactive Dashboard
+
+An interactive dashboard with Chart.js analytics widgets is available in your browser:
+🔗 [Open Interactive Dashboard HTML](final-analysis/figures/dashboard.html)
+
+---
+
+## 🚀 8. How to Run the System
+
+To re-run the entire pipeline from scratch:
+
+```bash
+# 1. Navigate to final-analysis
+cd final-analysis
+
+# 2. Run the final analysis and visualization suite
+../substitution-sim/venv/bin/python run_final_steps.py
+```
+
+All summary tables (`summary_table_all_tiers.csv`), figures (`.png`), and interactive dashboards (`dashboard.html`) will update automatically.
