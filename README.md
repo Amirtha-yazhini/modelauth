@@ -3,55 +3,49 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Framework: Ollama](https://img.shields.io/badge/LLM_Server-Ollama-orange.svg)](https://ollama.com)
-[![Status: Complete](https://img.shields.io/badge/Status-Complete-green.svg)](#)
+[![Architecture: Enterprise](https://img.shields.io/badge/Architecture-Enterprise_Modular-purple.svg)](#)
+[![Status: Production Ready](https://img.shields.io/badge/Status-Production_Ready-green.svg)](#)
 
-**ModelAuth** is a non-intrusive, statistical change-point detection system designed to identify silent LLM model downgrades or substitutions by third-party API providers (e.g., silently replacing `llama3.2:3b` with `qwen2.5:3b` or a smaller quantized variant). 
+**ModelAuth** is an enterprise-grade, non-intrusive statistical change-point detection system designed to identify silent LLM downgrades or model substitutions by third-party API providers (e.g., secretly replacing `llama3.2:3b` with `qwen2.5:3b` or a smaller quantized variant).
 
-Because external API providers hide model weights, log-probabilities, and internal layer activations behind HTTP endpoints, traditional software authentication and model verification techniques fail. **ModelAuth** operates entirely in a **self-baselining, zero-shot setting** by issuing single-token random integer probes to the endpoint and monitoring statistical shifts in output distributions.
-
----
-
-## 📐 Key Features & Highlights
-
-- **Zero-Shot Self-Baselining**: Requires no prior reference data, model weights, or logprob access.
-- **Four Statistical Detectors**:
-  - **Sliding-Window KS Detector**: 2-sample Kolmogorov-Smirnov test over rolling empirical CDFs.
-  - **Adaptive CUSUM**: Dynamic directional cumulative sum change-point detection on mean shifts.
-  - **DAS-CUSUM**: Variance-aware symmetric CUSUM tracking both mean and variance deviations ($z^2 - 1$).
-  - **Fixed-Reference Baseline**: Fingerprinting baseline comparing current batches to clean held-out reference streams (`rep14`).
-- **Cold-Start Contamination Boundary Testing**: Evaluates recovery power when early baseline history is partially contaminated.
-- **Interactive Analytics Dashboard**: Embedded Chart.js HTML dashboard for real-time visualization of ROC trade-off curves, detection delays, and cold-start boundary power degradation.
+Because external API providers obscure model weights, log-probabilities, and internal layer activations behind HTTP endpoints, traditional software authentication and model verification techniques fail. **ModelAuth** operates in a **self-baselining, zero-shot setting** by issuing single-token random integer probes to the endpoint and monitoring statistical shifts in output distributions.
 
 ---
 
-## 📂 Repository Structure
+## 🏛️ Enterprise System Architecture & Repository Structure
+
+The repository adheres to a clean, modular corporate hierarchy separating source packages, technical documentation, raw specifications, and visual analytics:
 
 ```
 modelauth/
-├── FINNNNNNAAAAALreport.md            # MASTER REPORT: Complete end-to-end beginner & expert guide
-├── README.md                          # Repository documentation & GitHub landing page
-├── COMPLETE_PROJECT_REPORT.md         # Technical report & specs
-├── TEAM_REFERENCE_PROGRESS_REPORT.md # Team progress reference
-├── EXPERIMENT_EVALUATION_GUIDE.md    # JSONL data schema reference
-├── .gitignore                        # Git exclusion rules
-├── substitution-sim/                 # Core simulation & detection package
-│   ├── config.py                     # Experiment hyperparameters & model pairs
-│   ├── probe_client.py               # Ollama REST API client
-│   ├── simulator.py                  # Stream generator & switch point simulator
-│   ├── run_experiments.py            # Resumable experiment suite runner
-│   ├── run_cold_start_experiment.py  # Cold-start contamination stream generator
-│   ├── data_loader.py                # Regex numeric answer loader
-│   ├── detector_v1.py                # Sliding-window 2-sample KS detector
-│   ├── detector_cusum.py             # Adaptive CUSUM detector
-│   ├── detector_das_cusum.py         # DAS-CUSUM variance detector
-│   ├── detector_fixed_reference.py   # Fixed reference baseline detector
-│   └── evaluate.py                   # Metrics computation suite
-└── final-analysis/                   # Analysis & visualization package
-    ├── sanity_checks.py              # Data completeness & separability audit
-    ├── visualizations.py             # Matplotlib trace, ROC, & contamination plots
-    ├── interactive_dashboard.py      # HTML dashboard generator
-    ├── run_final_steps.py            # Master analysis runner
-    └── figures/                      # Visual output assets & summary CSV table
+├── README.md                          # Repository landing page & executive guide
+├── FINNNNNNAAAAALreport.md            # MASTER REPORT: Comprehensive end-to-end guide & findings
+├── .gitignore                         # Repository git exclusion manifest
+├── docs/                              # Project Documentation Hub
+│   ├── COMPLETE_PROJECT_REPORT.md     # Technical reference manual & mathematical specs
+│   ├── TEAM_REFERENCE_PROGRESS_REPORT.md # Team working reference & implementation logs
+│   ├── EXPERIMENT_EVALUATION_GUIDE.md # JSONL schema & evaluation metric guide
+│   └── source_docs/                   # Raw specification files (.docx)
+│       ├── Final Steps.docx
+│       └── gaps.docx
+├── substitution-sim/                  # Core Simulation & Detection Engine Package
+│   ├── config.py                      # Global experiment hyperparameters & model pairs
+│   ├── probe_client.py                # Ollama REST API client
+│   ├── simulator.py                   # Stream generator & switch point simulator
+│   ├── run_experiments.py             # Resumable experiment suite runner
+│   ├── run_cold_start_experiment.py   # Cold-start contamination stream generator
+│   ├── data_loader.py                 # Regex numeric answer parser & stream loader
+│   ├── detector_v1.py                 # Sliding-window 2-sample KS test detector
+│   ├── detector_cusum.py              # Adaptive CUSUM detector
+│   ├── detector_das_cusum.py          # DAS-CUSUM variance-sensitive detector
+│   ├── detector_fixed_reference.py    # Static reference baseline detector
+│   └── evaluate.py                    # Multi-tier evaluation & benchmark suite
+└── final-analysis/                    # Analytics & Visual Reporting Package
+    ├── sanity_checks.py               # Data completeness & model separability audit
+    ├── visualizations.py              # Matplotlib trace, ROC, & contamination plots
+    ├── interactive_dashboard.py       # HTML / Chart.js dashboard generator
+    ├── run_final_steps.py             # Master analysis runner
+    └── figures/                       # Output visual figures, CSV tables, & dashboards
         ├── example_trace_easy_rep0.png
         ├── roc_comparison_easy.png
         ├── cold_start_boundary.png
@@ -76,7 +70,7 @@ ollama pull qwen2.5:3b
 
 ### 2. Environment Setup
 
-Clone the repository and set up a Python virtual environment:
+Clone the repository and initialize the virtual environment:
 
 ```bash
 git clone https://github.com/praneeth3696/modelauth.git
@@ -92,22 +86,22 @@ pip install numpy scipy matplotlib openai
 # Run simulation streams
 python run_experiments.py
 
-# Evaluate all 4 detectors (KS, CUSUM, DAS-CUSUM, Fixed-Reference)
+# Evaluate all 4 detectors (KS, Adaptive CUSUM, DAS-CUSUM, Fixed-Reference)
 python evaluate.py
 ```
 
-### 4. Run Analysis & Dashboard Suite
+### 4. Run Analysis & Launch Dashboard
 
 ```bash
 cd ../final-analysis
 ../substitution-sim/venv/bin/python run_final_steps.py
 ```
 
-Open `final-analysis/figures/dashboard.html` in any browser!
+Open `final-analysis/figures/dashboard.html` in any browser to inspect interactive charts!
 
 ---
 
-## 📊 Performance Benchmarks (Easy Tier)
+## 📊 Empirical Performance Summary (Easy Tier)
 
 Evaluated across 14 independent test repetitions on `llama3.2:3b` substituted by `qwen2.5:3b` at switch point $t = 200$:
 
@@ -134,11 +128,12 @@ Evaluated across 14 independent test repetitions on `llama3.2:3b` substituted by
 
 ## 📜 Documentation & References
 
-- 📄 [FINNNNNNAAAAALreport.md](FINNNNNNAAAAALreport.md): **MASTER REPORT** (Complete beginner-to-expert guide & technical findings).
-- 📄 [COMPLETE_PROJECT_REPORT.md](COMPLETE_PROJECT_REPORT.md): In-depth analytical report & specs.
-- 📄 [TEAM_REFERENCE_PROGRESS_REPORT.md](TEAM_REFERENCE_PROGRESS_REPORT.md): Team 14-day implementation reference.
-- 📄 [EXPERIMENT_EVALUATION_GUIDE.md](EXPERIMENT_EVALUATION_GUIDE.md): Stream schema & evaluation metrics.
-- 🌐 [dashboard.html](final-analysis/figures/dashboard.html): Interactive Chart.js dashboard.
+- 📄 [FINNNNNNAAAAALreport.md](FINNNNNNAAAAALreport.md): **MASTER REPORT** (Executive summary, intuition, math, and full benchmarks).
+- 📄 [docs/COMPLETE_PROJECT_REPORT.md](docs/COMPLETE_PROJECT_REPORT.md): In-depth technical reference manual.
+- 📄 [docs/TEAM_REFERENCE_PROGRESS_REPORT.md](docs/TEAM_REFERENCE_PROGRESS_REPORT.md): Team progress reference document.
+- 📄 [docs/EXPERIMENT_EVALUATION_GUIDE.md](docs/EXPERIMENT_EVALUATION_GUIDE.md): Data schema & evaluation metric guide.
+- 📂 [docs/source_docs/](docs/source_docs/): Raw specification documents (`Final Steps.docx`, `gaps.docx`).
+- 🌐 [final-analysis/figures/dashboard.html](final-analysis/figures/dashboard.html): Interactive Chart.js dashboard.
 
 ---
 

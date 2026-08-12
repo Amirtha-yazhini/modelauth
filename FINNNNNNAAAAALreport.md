@@ -20,40 +20,44 @@ Every AI model has unique internal preferences when asked open-ended questions. 
 
 Model A (`llama3.2:3b`) might favor numbers around 40–50 with a variance of 15, while Model B (`qwen2.5:3b`) might favor numbers around 60–70 with a tighter variance. 
 
-By sending these simple, cheap single-token probes alongside regular user traffic, **ModelAuth** monitors the stream of numbers over time. When a provider secretly swaps the model, the probability distribution of these random numbers shifts. Our statistical detectors pick up this shift automatically and raise a alarm!
+By sending these simple, cheap single-token probes alongside regular user traffic, **ModelAuth** monitors the stream of numbers over time. When a provider secretly swaps the model, the probability distribution of these random numbers shifts. Our statistical detectors pick up this shift automatically and raise an alarm!
 
 ---
 
-## 🏗️ 2. System Architecture & Component Design
+## 🏛️ Enterprise System Architecture & Corporate Directory Layout
 
-The project is structured under `modelauth/`:
+The project adheres to a clean corporate hierarchy separating core code, technical documentation, raw specifications, and visual analytics:
 
 ```
 modelauth/
-├── FINNNNNNAAAAALreport.md            # THIS REPORT: Complete end-to-end master document
-├── README.md                          # Repository documentation & GitHub landing page
-├── COMPLETE_PROJECT_REPORT.md         # Technical documentation
-├── TEAM_REFERENCE_PROGRESS_REPORT.md # Working reference notes
-├── EXPERIMENT_EVALUATION_GUIDE.md    # JSONL data schema reference
-├── .gitignore                        # Git exclusion manifest
-├── substitution-sim/                 # Core simulation & detection package
-│   ├── config.py                     # Hyperparameters & model pair settings
-│   ├── probe_client.py               # REST client for Ollama API endpoints
-│   ├── simulator.py                  # Stream generator & switch point simulator
-│   ├── run_experiments.py            # Resumable experiment suite runner
-│   ├── run_cold_start_experiment.py  # Cold-start contamination stream generator
-│   ├── data_loader.py                # Fast regex number parser & stream loader
-│   ├── detector_v1.py                # Sliding-window 2-sample KS test detector
-│   ├── detector_cusum.py             # Adaptive CUSUM change-point detector
-│   ├── detector_das_cusum.py         # DAS-CUSUM variance-sensitive detector
-│   ├── detector_fixed_reference.py   # Static reference baseline detector
-│   └── evaluate.py                   # Benchmark metrics calculator (with bug fixes)
-└── final-analysis/                   # Analysis & visualization package
-    ├── sanity_checks.py              # Data completeness & separability audit
-    ├── visualizations.py             # Matplotlib trace, ROC, & contamination plots
-    ├── interactive_dashboard.py      # HTML / Chart.js interactive dashboard generator
-    ├── run_final_steps.py            # Master analysis driver
-    └── figures/                      # Output visual figures & summary tables
+├── README.md                          # Repository landing page & executive guide
+├── FINNNNNNAAAAALreport.md            # THIS REPORT: Master end-to-end guide & analytical report
+├── .gitignore                         # Repository git exclusion rules
+├── docs/                              # Project Documentation Hub
+│   ├── COMPLETE_PROJECT_REPORT.md     # Technical reference manual
+│   ├── TEAM_REFERENCE_PROGRESS_REPORT.md # Team implementation reference
+│   ├── EXPERIMENT_EVALUATION_GUIDE.md # JSONL stream schema & metric guide
+│   └── source_docs/                   # Raw specification files (.docx)
+│       ├── Final Steps.docx
+│       └── gaps.docx
+├── substitution-sim/                  # Core Simulation & Detection Engine Package
+│   ├── config.py                      # Global experiment hyperparameters & model pairs
+│   ├── probe_client.py                # Ollama REST API client
+│   ├── simulator.py                   # Stream generator & switch point simulator
+│   ├── run_experiments.py             # Resumable experiment suite runner
+│   ├── run_cold_start_experiment.py   # Cold-start contamination stream generator
+│   ├── data_loader.py                 # Regex numeric answer parser & stream loader
+│   ├── detector_v1.py                 # Sliding-window 2-sample KS test detector
+│   ├── detector_cusum.py              # Adaptive CUSUM detector
+│   ├── detector_das_cusum.py          # DAS-CUSUM variance-sensitive detector
+│   ├── detector_fixed_reference.py    # Static reference baseline detector
+│   └── evaluate.py                    # Multi-tier evaluation & benchmark suite
+└── final-analysis/                    # Analytics & Visual Reporting Package
+    ├── sanity_checks.py               # Data completeness & model separability audit
+    ├── visualizations.py              # Matplotlib trace, ROC, & contamination plots
+    ├── interactive_dashboard.py       # HTML / Chart.js dashboard generator
+    ├── run_final_steps.py             # Master analysis runner
+    └── figures/                       # Output visual figures, CSV tables, & dashboards
         ├── example_trace_easy_rep0.png
         ├── roc_comparison_easy.png
         ├── cold_start_boundary.png
