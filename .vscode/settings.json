@@ -1,0 +1,10 @@
+{
+  "python.analysis.extraPaths": [
+    "./substitution-sim",
+    "./final-analysis"
+  ],
+  "python.autoComplete.extraPaths": [
+    "./substitution-sim",
+    "./final-analysis"
+  ]
+}
