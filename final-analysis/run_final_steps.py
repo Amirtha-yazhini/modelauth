@@ -17,6 +17,8 @@ from visualizations import (
     plot_roc_curves,
     plot_contamination_curve,
     build_summary_table,
+    plot_multi_tier_benchmark,
+    plot_distribution_separability,
     FIG_DIR,
 )
 from detector_cusum import adaptive_cusum_detector
@@ -42,21 +44,23 @@ def main():
     print()
 
     print("--- [STEP 1.2] Model Separability Check (Model A vs Model B) ---")
-    separability = check_model_separability("easy")
-    print(f"Easy Tier Separability: KS-Stat = {separability.get('ks_stat')}, p-value = {separability.get('p_value')}, Separable = {separability.get('separable')}")
+    for diff in ["easy", "medium", "hard"]:
+        separability = check_model_separability(diff)
+        print(f"{diff.capitalize()} Tier Separability: KS-Stat = {separability.get('ks_stat')}, p-value = {separability.get('p_value')}, Separable = {separability.get('separable')}")
     print()
 
     print("--- [STEP 1.3] Check Tier Ordering ---")
-    ordering = check_tier_ordering(["easy"])
+    ordering = check_tier_ordering(["easy", "medium", "hard"])
     print(f"Tier Metrics: {ordering}")
     print()
 
     print("--- [STEP 1.4] Repetition Anomaly Audit ---")
-    anomalies = audit_all_repetitions("easy", "substitution")
-    if anomalies:
-        print(f"[warn] Found {len(anomalies)} short streams (<300 records): {anomalies}")
-    else:
-        print("✓ All checked streams contain expected record counts (>=300 records).")
+    for diff in ["easy", "medium", "hard"]:
+        anomalies = audit_all_repetitions(diff, "substitution")
+        if anomalies:
+            print(f"[warn] {diff.capitalize()} Tier: Found {len(anomalies)} short streams (<300 records): {anomalies}")
+        else:
+            print(f"[OK] {diff.capitalize()} Tier: All checked streams contain expected record counts (>=300 records).")
     print()
 
     # -------------------------------------------------------------
@@ -66,25 +70,37 @@ def main():
     print("--- [STEP 2] Building Figures & Summary Tables ---")
     print("=" * 70)
 
-    # Figure 1: Example Trace
-    trace_path = plot_example_trace("easy", 0, adaptive_cusum_detector, {"warmup": 40, "k": 0.5, "h": 5.0})
-    if trace_path:
-        print(f"✓ Figure 1 generated: {os.path.relpath(trace_path, SCRIPT_DIR)}")
+    # Figure 1: Example Traces for Easy, Medium, Hard
+    for diff in ["easy", "medium", "hard"]:
+        trace_path = plot_example_trace(diff, 0, adaptive_cusum_detector, {"warmup": 40, "k": 0.5, "h": 5.0})
+        if trace_path:
+            print(f"[OK] Figure ({diff.capitalize()} Trace) generated: {os.path.relpath(trace_path, SCRIPT_DIR)}")
 
-    # Figure 2: ROC Curve
-    roc_path = plot_roc_curves("easy")
-    if roc_path:
-        print(f"✓ Figure 2 generated: {os.path.relpath(roc_path, SCRIPT_DIR)}")
+    # Figure 2: ROC Curves for Easy, Medium, Hard
+    for diff in ["easy", "medium", "hard"]:
+        roc_path = plot_roc_curves(diff)
+        if roc_path:
+            print(f"[OK] Figure ({diff.capitalize()} ROC) generated: {os.path.relpath(roc_path, SCRIPT_DIR)}")
 
     # Figure 4: Contamination Curve
     contam_path = plot_contamination_curve()
     if contam_path:
-        print(f"✓ Figure 4 generated: {os.path.relpath(contam_path, SCRIPT_DIR)}")
+        print(f"[OK] Figure 4 (Contamination Boundary) generated: {os.path.relpath(contam_path, SCRIPT_DIR)}")
 
-    # Table 1: Summary CSV
-    table_rows = build_summary_table(["easy"])
+    # Figure 5: Multi-Tier Benchmark Comparison Bar Chart
+    comp_path = plot_multi_tier_benchmark()
+    if comp_path:
+        print(f"[OK] Figure 5 (Multi-Tier Comparison) generated: {os.path.relpath(comp_path, SCRIPT_DIR)}")
+
+    # Figure 6: Model Output Distribution Separability
+    dist_path = plot_distribution_separability()
+    if dist_path:
+        print(f"[OK] Figure 6 (Distribution Separability) generated: {os.path.relpath(dist_path, SCRIPT_DIR)}")
+
+    # Table 1: Summary CSV (All Tiers)
+    table_rows = build_summary_table(["easy", "medium", "hard"])
     summary_path = os.path.join(FIG_DIR, "summary_table.csv")
-    print(f"✓ Table 1 generated: {os.path.relpath(summary_path, SCRIPT_DIR)}")
+    print(f"[OK] Table 1 generated: {os.path.relpath(summary_path, SCRIPT_DIR)}")
     print("\nSummary Table Output:")
     for r in table_rows:
         print(r)

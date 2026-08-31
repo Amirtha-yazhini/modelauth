@@ -91,50 +91,79 @@ Flags when $S_t^{\text{das}} > h$.
 ---
 
 ## 4. Empirical Benchmark Results
-
-Evaluated on 15 independent repetitions of `easy` difficulty streams (`llama3.2:3b` substituted by `qwen2.5:3b` at $t=200$):
-
-| Detector Method | Mean Detection Delay ($\tau - T$) | Detection Rate (Power) | False Alarm Rate ($\alpha$) | Performance Assessment |
-| :--- | :---: | :---: | :---: | :--- |
-| **`v1 naive`** *(Sliding Window KS)* | **+15.38 probes** | **86.67%** | **0.11%** | **Fastest & Precise** |
-| **`adaptive CUSUM`** | **-80.00 probes*** | **100.00%** | **0.94%** | High Power (Requires $h$ tuning) |
-| **`DAS-CUSUM`** | **-85.92 probes*** | **86.67%** | **0.85%** | Robust to Variance Shifts |
-
-*> [!TIP]
-> **Key Finding**: The Kolmogorov-Smirnov sliding window (`v1 naive`) detected model substitution **15.38 requests after the silent switch**, maintaining a near-zero false alarm rate (0.11%).
-
+ 
+Evaluated on independent test repetitions of **Easy** (`llama3.2:3b` $\rightarrow$ `qwen2.5:3b`), **Medium** (`llama3.2:1b` $\rightarrow$ `llama3.2:3b`), and **Hard** (`llama3.2:3b-instruct-q4_K_M` $\rightarrow$ `llama3.2:3b-instruct-q8_0`) difficulty streams at switch point $t=200$:
+ 
+| Difficulty Tier | Model Pair ($A \rightarrow B$) | Nature of Substitution | Detector Method | Mean Detection Delay ($\tau - T$) | Detection Rate (Power) | False Alarm Rate ($\alpha$) | Performance Assessment |
+| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+| **Easy Tier** | `llama3.2:3b` $\rightarrow$ `qwen2.5:3b` | Cross-Architecture | **`v1 naive`** *(Sliding Window KS)* | **+15.33 probes** | **85.71%** | **0.00%** | **Fastest & Zero False Alarms** |
+| **Easy Tier** | `llama3.2:3b` $\rightarrow$ `qwen2.5:3b` | Cross-Architecture | **`adaptive CUSUM`** | **+11.00 probes** | **78.57%** | **0.42%** | **Lowest Delay Post-Switch** |
+| **Easy Tier** | `llama3.2:3b` $\rightarrow$ `qwen2.5:3b` | Cross-Architecture | **`DAS-CUSUM`** | **+53.00 probes** | **57.14%** | **0.38%** | Robust to Variance Shifts |
+| **Easy Tier** | `llama3.2:3b` $\rightarrow$ `qwen2.5:3b` | Cross-Architecture | **`fixed-reference`** *(Held-Out)* | **+20.00 probes** | **100.00%** | **0.36%** | **100% Detection Power** |
+| **Medium Tier** | `llama3.2:1b` $\rightarrow$ `llama3.2:3b` | Capacity/Scale Shift | **`v1 naive`** *(Sliding Window KS)* | **+14.50 probes** | **14.29%** | **0.16%** | Power drops on subtle intra-family shift |
+| **Medium Tier** | `llama3.2:1b` $\rightarrow$ `llama3.2:3b` | Capacity/Scale Shift | **`adaptive CUSUM`** | **+41.15 probes** | **92.86%** | **0.08%** | **Top Self-Baselined Power (92.86%)** |
+| **Medium Tier** | `llama3.2:1b` $\rightarrow$ `llama3.2:3b` | Capacity/Scale Shift | **`DAS-CUSUM`** | **+83.55 probes** | **78.57%** | **0.00%** | **Zero False Alarms (0.00%)** |
+| **Medium Tier** | `llama3.2:1b` $\rightarrow$ `llama3.2:3b` | Capacity/Scale Shift | **`fixed-reference`** *(Held-Out)* | **+22.86 probes** | **100.00%** | **0.75%** | **100% Detection Power** |
+| **Hard Tier** | `llama3.2:3b-q4` $\rightarrow$ `3b-q8` | Quantization Shift | **`v1 naive`** *(Sliding Window KS)* | **+126.00 probes** | **28.57%** | **0.00%** | High Delay on precision drift |
+| **Hard Tier** | `llama3.2:3b-q4` $\rightarrow$ `3b-q8` | Quantization Shift | **`adaptive CUSUM`** | **+71.20 probes** | **71.43%** | **0.58%** | **Top Quantization Power (71.43%)** |
+| **Hard Tier** | `llama3.2:3b-q4` $\rightarrow$ `3b-q8` | Quantization Shift | **`DAS-CUSUM`** | **+88.75 probes** | **57.14%** | **0.54%** | Variance-Sensitive Drift Tracking |
+| **Hard Tier** | `llama3.2:3b-q4` $\rightarrow$ `3b-q8` | Quantization Shift | **`fixed-reference`** *(Held-Out)* | **+90.00 probes** | **14.29%** | **0.36%** | Requires larger batch integration |
+ 
+> [!TIP]
+> **Key Finding**: Across all three difficulty tiers, **Adaptive CUSUM** is the highest performing self-baselining detector (**78.57%** Easy, **92.86%** Medium, and **71.43%** Hard), accumulating subtle standardized drift without requiring stored reference distributions.
+ 
 ---
-
+ 
 ## 5. Visualizations & Analytics
+ 
+### 5.1 Single Stream Response Traces & Switch Points
+ 
+| Easy Tier (`llama3.2:3b` $\rightarrow$ `qwen2.5:3b`) | Medium Tier (`llama3.2:1b` $\rightarrow$ `llama3.2:3b`) | Hard Tier (`llama3.2:3b-q4` $\rightarrow$ `3b-q8`) |
+| :---: | :---: | :---: |
+| ![Example Trace — Easy](../final-analysis/figures/example_trace_easy_rep0.png) | ![Example Trace — Medium](../final-analysis/figures/example_trace_medium_rep0.png) | ![Example Trace — Hard](../final-analysis/figures/example_trace_hard_rep0.png) |
+ 
+*Figure 1: Numerical response stream across 400 probes for Easy, Medium, and Hard tiers. The red dashed line marks the ground-truth substitution point ($t=200$), and the green dotted line marks the detector's automated flag.*
+ 
+---
+ 
+### 5.2 ROC Delay vs. False Alarm Rate Trade-Off Curves
+ 
+| Easy Tier ROC Curve | Medium Tier ROC Curve | Hard Tier ROC Curve |
+| :---: | :---: | :---: |
+| ![ROC Curve — Easy](../final-analysis/figures/roc_comparison_easy.png) | ![ROC Curve — Medium](../final-analysis/figures/roc_comparison_medium.png) | ![ROC Curve — Hard](../final-analysis/figures/roc_comparison_hard.png) |
+ 
+*Figure 2: Receiver Operating Characteristic (ROC) trade-off curves mapping False Alarm Rate ($X$-axis) against Mean Detection Delay ($Y$-axis).*
+ 
+---
+ 
+### 5.3 Complete Multi-Tier Detector Benchmark Comparison (Power & Delay)
 
-### 5.1 Single Stream Response Trace & Switch Point
+![Multi-Tier Benchmark Comparison](../final-analysis/figures/multi_tier_benchmark_comparison.png)
 
-![Example Trace — Easy Tier](/Users/praneeth/Work/AI%20infra/modelauth/final-analysis/figures/example_trace_easy_rep0.png)
-
-*Figure 1: Numerical response stream across 400 probes. The red dashed line marks the ground-truth substitution point ($t=200$), and the green dotted line marks the detector's automated flag.*
+*Figure 3: Side-by-side grouped bar chart comparing Detection Power (%) and Mean Detection Delay (probes) across all 4 detectors for Easy, Medium, and Hard difficulty tiers.*
 
 ---
 
-### 5.2 ROC Delay vs. False Alarm Rate Trade-Off Curve
+### 5.4 Model Output Distribution Separability (Architecture vs Scale vs Quantization)
 
-![ROC Trade-Off Curve — Delay vs False Alarm Rate](/Users/praneeth/Work/AI%20infra/modelauth/final-analysis/figures/roc_comparison_easy.png)
+![Distribution Separability All Tiers](../final-analysis/figures/distribution_separability_all_tiers.png)
 
-*Figure 2: Receiver Operating Characteristic (ROC) trade-off curve mapping False Alarm Rate ($X$-axis) against Mean Detection Delay ($Y$-axis).*
-
----
-
-### 5.3 Cold-Start Baseline Contamination Boundary
-
-![Cold-Start Contamination Power Boundary](/Users/praneeth/Work/AI%20infra/modelauth/final-analysis/figures/cold_start_boundary.png)
-
-*Figure 4: Impact of history contamination on detection power. Detection power remains high ($>85\%$) up to $25\%$ contamination.*
+*Figure 4: Empirical probability density distributions of single-token probe responses across all three difficulty tiers.*
 
 ---
 
+### 5.5 Cold-Start Baseline Contamination Boundary
+
+![Cold-Start Contamination Power Boundary](../final-analysis/figures/cold_start_boundary.png)
+
+*Figure 5: Impact of history contamination on detection power. Detection power remains high ($>85\%$) up to $25\%$ contamination.*
+ 
+---
+ 
 ## 6. Interactive Dashboard
-
+ 
 An interactive dashboard with Chart.js visualization widgets has been generated:
-🔗 [Interactive Dashboard HTML](file:///Users/praneeth/Work/AI%20infra/modelauth/final-analysis/figures/dashboard.html)
+🔗 [Interactive Dashboard HTML](file:///d:/Praneeth/Work/modelauth/final-analysis/figures/dashboard.html)
 
 ---
 

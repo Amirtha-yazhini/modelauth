@@ -36,10 +36,14 @@ def compute_metrics(detector_fn, sub_streams, null_streams, true_switch, **kwarg
         "mean_false_alarm_rate": float(np.mean(false_alarm_counts)) if false_alarm_counts else 0.0,
     }
 
-def load_all_reps(difficulty, condition, n_reps=14):
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+
+def load_all_reps(difficulty, condition, n_reps=14, data_dir=None):
+    if data_dir is None:
+        data_dir = DATA_DIR
     streams = []
     for rep in range(n_reps):
-        fname = f"data/{difficulty}_{condition}_rep{rep}.jsonl"
+        fname = os.path.join(data_dir, f"{difficulty}_{condition}_rep{rep}.jsonl")
         if not os.path.exists(fname):
             break
         records = load_numeric_stream(fname)
@@ -58,7 +62,7 @@ if __name__ == "__main__":
             continue
 
         # Held-out reference stream for fixed-reference detector (rep14)
-        ref_file = f"data/{difficulty}_null_rep14.jsonl"
+        ref_file = os.path.join(DATA_DIR, f"{difficulty}_null_rep14.jsonl")
         reference_dist = None
         if os.path.exists(ref_file):
             ref_records = load_numeric_stream(ref_file)

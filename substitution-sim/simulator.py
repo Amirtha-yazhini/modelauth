@@ -2,9 +2,10 @@ import random
 from probe_client import probe
 from config import PROBE_TEMPLATES
 
-def generate_probe_stream(model_a, model_b, total_requests, switch_point, temperature=1.0, max_tokens=5):
-    results = []
-    for i in range(total_requests):
+import concurrent.futures
+
+def generate_probe_stream(model_a, model_b, total_requests, switch_point, temperature=1.0, max_tokens=5, max_workers=8):
+    def _fetch_probe(i):
         current_model = model_a
         if switch_point is not None and i >= switch_point:
             current_model = model_b
@@ -12,13 +13,16 @@ def generate_probe_stream(model_a, model_b, total_requests, switch_point, temper
         prompt = random.choice(PROBE_TEMPLATES)
         answer = probe(current_model, prompt, temperature=temperature, max_tokens=max_tokens)
 
-        results.append({
+        return {
             "index": i,
             "prompt": prompt,
             "answer": answer,
             "true_model": current_model,
             "failed": answer is None,
-        })
+        }
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(_fetch_probe, range(total_requests)))
 
     return results
 

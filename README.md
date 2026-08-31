@@ -60,33 +60,42 @@ modelauth/
 
 ### 1. Prerequisites & Model Setup
 
-Install [Ollama](https://ollama.com) and pull the benchmark model pairs:
+### 1. Prerequisites & Model Setup
+
+Install [Ollama](https://ollama.com) and pull the benchmark model pairs across difficulty tiers:
 
 ```bash
-# Pull model pairs for the 'easy' tier
+# Easy Tier: Cross-Architecture (LLaMA-3B vs Qwen-3B)
 ollama pull llama3.2:3b
 ollama pull qwen2.5:3b
+
+# Medium Tier: Capacity / Parameter Scale Shift (LLaMA-1B vs LLaMA-3B)
+ollama pull llama3.2:1b
+
+# Hard Tier: Quantization Precision Shift (LLaMA-3B-Instruct 4-bit vs 8-bit)
+ollama pull llama3.2:3b-instruct-q4_K_M
+ollama pull llama3.2:3b-instruct-q8_0
 ```
 
 ### 2. Environment Setup
 
-Clone the repository and initialize the virtual environment:
+Clone the repository and initialize the Python environment:
 
 ```bash
 git clone https://github.com/praneeth3696/modelauth.git
 cd modelauth/substitution-sim
-python3 -m venv venv
-source venv/bin/activate
 pip install numpy scipy matplotlib openai
 ```
 
 ### 3. Run Experiments & Evaluations
 
 ```bash
-# Run simulation streams
-python run_experiments.py
+# Generate simulation probe streams (easy, medium, or hard)
+python run_experiments.py easy
+python run_experiments.py medium
+python run_experiments.py hard
 
-# Evaluate all 4 detectors (KS, Adaptive CUSUM, DAS-CUSUM, Fixed-Reference)
+# Evaluate all 4 detectors across all tiers
 python evaluate.py
 ```
 
@@ -94,35 +103,52 @@ python evaluate.py
 
 ```bash
 cd ../final-analysis
-../substitution-sim/venv/bin/python run_final_steps.py
+python run_final_steps.py
+python interactive_dashboard.py
 ```
 
 Open `final-analysis/figures/dashboard.html` in any browser to inspect interactive charts!
 
 ---
 
-## 📊 Empirical Performance Summary (Easy Tier)
+## 📊 Complete Empirical Performance Summary (All 3 Tiers)
 
-Evaluated across 14 independent test repetitions on `llama3.2:3b` substituted by `qwen2.5:3b` at switch point $t = 200$:
+Evaluated across independent test repetitions on **Easy** (`llama3.2:3b` $\rightarrow$ `qwen2.5:3b`), **Medium** (`llama3.2:1b` $\rightarrow$ `llama3.2:3b`), and **Hard** (`llama3.2:3b-instruct-q4_K_M` $\rightarrow$ `llama3.2:3b-instruct-q8_0`) tiers at true substitution switch point $t = 200$:
 
-| Detector Method | Mean Detection Delay ($\tau - T$) | Detection Rate (Power) | False Alarm Rate ($\alpha$) | Performance Assessment |
-| :--- | :---: | :---: | :---: | :--- |
-| **`v1 naive`** *(Sliding Window KS)* | **+15.33 probes** | **85.71%** | **0.00%** | **Fastest & Zero False Alarms** |
-| **`adaptive CUSUM`** | **+11.00 probes** | **78.57%** | **0.42%** | **Lowest Delay Post-Switch** |
-| **`DAS-CUSUM`** | **+53.00 probes** | **57.14%** | **0.38%** | Robust to Variance Shifts |
-| **`fixed-reference`** *(Held-Out)* | **+20.00 probes** | **100.00%** | **0.36%** | **100% Detection Power** |
+| Difficulty Tier | Model Pair ($A \rightarrow B$) | Nature of Substitution | Detector Method | Mean Detection Delay ($\tau - T$) | Detection Rate (Power) | False Alarm Rate ($\alpha$) | Performance Assessment |
+| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+| **Easy Tier** | `llama3.2:3b` $\rightarrow$ `qwen2.5:3b` | Cross-Architecture | **`v1 naive`** *(Sliding Window KS)* | **+15.33 probes** | **85.71%** | **0.00%** | **Fastest & Zero False Alarms** |
+| **Easy Tier** | `llama3.2:3b` $\rightarrow$ `qwen2.5:3b` | Cross-Architecture | **`adaptive CUSUM`** | **+11.00 probes** | **78.57%** | **0.42%** | **Lowest Delay Post-Switch** |
+| **Easy Tier** | `llama3.2:3b` $\rightarrow$ `qwen2.5:3b` | Cross-Architecture | **`DAS-CUSUM`** | **+53.00 probes** | **57.14%** | **0.38%** | Robust to Variance Shifts |
+| **Easy Tier** | `llama3.2:3b` $\rightarrow$ `qwen2.5:3b` | Cross-Architecture | **`fixed-reference`** *(Held-Out)* | **+20.00 probes** | **100.00%** | **0.36%** | **100% Detection Power** |
+| **Medium Tier** | `llama3.2:1b` $\rightarrow$ `llama3.2:3b` | Capacity/Scale Shift | **`v1 naive`** *(Sliding Window KS)* | **+14.50 probes** | **14.29%** | **0.16%** | Power drops on subtle intra-family shift |
+| **Medium Tier** | `llama3.2:1b` $\rightarrow$ `llama3.2:3b` | Capacity/Scale Shift | **`adaptive CUSUM`** | **+41.15 probes** | **92.86%** | **0.08%** | **Top Self-Baselined Power (92.86%)** |
+| **Medium Tier** | `llama3.2:1b` $\rightarrow$ `llama3.2:3b` | Capacity/Scale Shift | **`DAS-CUSUM`** | **+83.55 probes** | **78.57%** | **0.00%** | **Zero False Alarms (0.00%)** |
+| **Medium Tier** | `llama3.2:1b` $\rightarrow$ `llama3.2:3b` | Capacity/Scale Shift | **`fixed-reference`** *(Held-Out)* | **+22.86 probes** | **100.00%** | **0.75%** | **100% Detection Power** |
+| **Hard Tier** | `llama3.2:3b-q4` $\rightarrow$ `3b-q8` | Quantization Shift | **`v1 naive`** *(Sliding Window KS)* | **+126.00 probes** | **28.57%** | **0.00%** | High Delay on precision drift |
+| **Hard Tier** | `llama3.2:3b-q4` $\rightarrow$ `3b-q8` | Quantization Shift | **`adaptive CUSUM`** | **+71.20 probes** | **71.43%** | **0.58%** | **Top Quantization Power (71.43%)** |
+| **Hard Tier** | `llama3.2:3b-q4` $\rightarrow$ `3b-q8` | Quantization Shift | **`DAS-CUSUM`** | **+88.75 probes** | **57.14%** | **0.54%** | Variance-Sensitive Drift Tracking |
+| **Hard Tier** | `llama3.2:3b-q4` $\rightarrow$ `3b-q8` | Quantization Shift | **`fixed-reference`** *(Held-Out)* | **+90.00 probes** | **14.29%** | **0.36%** | Requires larger batch integration |
 
 ---
 
 ## 📊 Visualizations
 
-| Response Trace & Switch Point | ROC Delay vs. False Alarm Curve |
-| :---: | :---: |
-| ![Example Trace](final-analysis/figures/example_trace_easy_rep0.png) | ![ROC Curve](final-analysis/figures/roc_comparison_easy.png) |
+| Easy Tier Trace | Medium Tier Trace | Hard Tier Trace |
+| :---: | :---: | :---: |
+| ![Example Trace Easy](final-analysis/figures/example_trace_easy_rep0.png) | ![Example Trace Medium](final-analysis/figures/example_trace_medium_rep0.png) | ![Example Trace Hard](final-analysis/figures/example_trace_hard_rep0.png) |
 
-| Cold-Start Contamination Boundary |
+| Easy Tier ROC Curve | Medium Tier ROC Curve | Hard Tier ROC Curve |
+| :---: | :---: | :---: |
+| ![ROC Curve Easy](final-analysis/figures/roc_comparison_easy.png) | ![ROC Curve Medium](final-analysis/figures/roc_comparison_medium.png) | ![ROC Curve Hard](final-analysis/figures/roc_comparison_hard.png) |
+
+| Complete Multi-Tier Benchmark Comparison (Power & Delay) |
 | :---: |
-| ![Cold Start Boundary](final-analysis/figures/cold_start_boundary.png) |
+| ![Multi-Tier Benchmark Comparison](final-analysis/figures/multi_tier_benchmark_comparison.png) |
+
+| Empirical Model Output Distribution Separability (All Tiers) | Cold-Start Contamination Boundary |
+| :---: | :---: |
+| ![Distribution Separability](final-analysis/figures/distribution_separability_all_tiers.png) | ![Cold Start Boundary](final-analysis/figures/cold_start_boundary.png) |
 
 ---
 
