@@ -29,6 +29,8 @@ from detector_cusum import adaptive_cusum_detector
 from detector_variance_cusum import variance_cusum_detector
 from detector_fixed_reference import fixed_reference_detector, build_reference_distribution
 from detector_oracle import oracle_lr_cusum, fit_oracle_pmfs
+from detector_compression import eprocess_detector, mdl_cusum_detector
+from detector_baselines_2026 import energy_distance_detector, js_fingerprint_detector
 from stats_categorical import channel_report, estimate_pmf, lorden_bound
 
 ALPHA = 1e-4          # anytime-valid target for the oracle
@@ -48,20 +50,29 @@ def load_all_reps(difficulty, condition, n_reps=N_TEST_REPS):
         path = stream_path(difficulty, condition, rep)
         if not os.path.exists(path):
             break
-        streams.append([r["numeric_answer"] for r in load_numeric_stream(path)])
+        recs = load_numeric_stream(path)
+        streams.append(([r["numeric_answer"] for r in recs],
+                        [r["prompt"][:16] for r in recs]))
     return streams
+
+
+def _call(detector_fn, values, ctxs, kwargs):
+    """Pass contexts only to detectors that accept them."""
+    if "contexts" in detector_fn.__code__.co_varnames[:detector_fn.__code__.co_argcount]:
+        return detector_fn(values, contexts=ctxs, **kwargs)
+    return detector_fn(values, **kwargs)
 
 
 def compute_metrics(detector_fn, sub_streams, null_streams, true_switch, **kwargs):
     delays = []
-    for stream in sub_streams:
-        results = detector_fn(stream, **kwargs)
+    for values, ctxs in sub_streams:
+        results = _call(detector_fn, values, ctxs, kwargs)
         first = next((d for d in results if d["flagged"] and d["index"] >= true_switch), None)
         delays.append(first["index"] - true_switch if first else None)
 
     fa_rates, streams_with_fa = [], 0
-    for stream in null_streams:
-        results = detector_fn(stream, **kwargs)
+    for values, ctxs in null_streams:
+        results = _call(detector_fn, values, ctxs, kwargs)
         # A null stream never switches, so ANY flag is a false alarm.
         n_flags = sum(1 for d in results if d["flagged"])
         fa_rates.append(n_flags / len(results) if results else 0.0)
@@ -125,6 +136,12 @@ def main():
 
         methods = [
             ("KS sliding window", sliding_window_detector, {"window_size": 20}),
+            ("energy distance [Leshin]", energy_distance_detector, {"alpha": ALPHA}),
+            ("JS fingerprint [Bruckner]", js_fingerprint_detector, {}),
+            ("MDL-CUSUM", mdl_cusum_detector, {"alpha": ALPHA}),
+            ("e-process (Ville)", eprocess_detector, {"alpha": ALPHA}),
+            ("e-process conditional", eprocess_detector,
+             {"alpha": ALPHA, "conditional": True}),
             ("adaptive CUSUM", adaptive_cusum_detector, {"warmup": 40, "k": 0.5, "h": 5.0}),
             ("variance CUSUM", variance_cusum_detector, {"warmup": 40, "k": 0.5, "h": 5.0}),
         ]
